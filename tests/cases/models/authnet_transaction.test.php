@@ -99,7 +99,7 @@ Class AuthnetTransactionTestCase extends CakeTestCase {
 		return array(
 			'card_number' => $config['test_account'],
 			'expiration' => $config['test_expire'],
-			'ccv' => $config['test_ccv'],
+			'cvv' => $config['test_cvv'],
 			'billing_first_name' => array_shift($nameParts),
 			'billing_last_name' => implode(' ', $nameParts),
 			'billing_street' => $config['test_address'],
