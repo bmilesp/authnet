@@ -445,6 +445,11 @@ class AuthnetSource extends DataSource {
 			if (isset($Model->logModelData)) {
 				$Model->logModel->logModelData = $Model->logModelData; 
 			}
+			foreach($return as &$val){
+				if(is_array($val)){
+					$val = json_encode($val);	
+				}
+			}
 			$Model->logModel->create(false);
 			$Model->logModel->save($return);
 		}

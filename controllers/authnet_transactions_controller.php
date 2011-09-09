@@ -30,13 +30,13 @@ class AuthnetTransactionsController extends AuthnetAppController {
 		}
 	}
 	
-	private function __flashDecline(&$Model = null) {
+	protected function __flashDecline(&$Model = null) {
 		if (empty($Model)) {
 			$Model = $this->AuthnetTransaction;
 		}
 		$invalid = $Model->invalidFields();
+		debug($invalid);
 		if (!empty($invalid)) {
-			debug($invalid);
 			if (!empty($invalid['declined'])) {
 				$this->Session->setFlash('<span title="Subcode: ' . $invalid['declined'][1] . '">' . $invalid['declined'][0] . '</span>: ' . $invalid['declined'][2]);
 			} else {
@@ -46,5 +46,3 @@ class AuthnetTransactionsController extends AuthnetAppController {
 	}
 
 }
-
-?>
