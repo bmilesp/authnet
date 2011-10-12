@@ -35,7 +35,6 @@ class AuthnetTransactionsController extends AuthnetAppController {
 			$Model = $this->AuthnetTransaction;
 		}
 		$invalid = $Model->invalidFields();
-		debug($invalid);
 		if (!empty($invalid)) {
 			if (!empty($invalid['declined'])) {
 				$this->Session->setFlash('<span title="Subcode: ' . $invalid['declined'][1] . '">' . $invalid['declined'][0] . '</span>: ' . $invalid['declined'][2]);

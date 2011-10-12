@@ -1,12 +1,12 @@
 <?php
-App::import('Lib', array('Cart.IExpressCheckoutProcessor', 'Cart.IRefundProcessor'));
+App::import('Lib', array('Cart.IDirectCheckoutProcessor', 'Cart.IRefundProcessor'));
 /**
  * Authorize.net Payment Processor Component
  * Implements the ExpressCheckout interface to be used with the Cart plugin
  * Implements the Refund interface for the Cart plugin
  *
  */
-class AuthnetProcessorComponent extends Object implements IExpressCheckoutProcessor, IRefundProcessor {
+class AuthnetProcessorComponent extends Object implements IDirectCheckoutProcessor, IRefundProcessor {
 
 /**
  * Current controller
@@ -16,20 +16,22 @@ class AuthnetProcessorComponent extends Object implements IExpressCheckoutProces
  */
 	public $Controller;
 	
+	
+	
 /**
  *  Used for authnet transactions and datasource
  */	
 	public $TransactionModel = null;
 	
-	/**
-	 * 
-	 * Modelname used for Authnet transactions
-	 * 
-	 * @var authnetModel
-	 * @access public
-	 */
-	public $authnetModel = 'Authnet.AuthnetTransaction';
-
+/**
+ * 
+ * Modelname used for Authnet transactions
+ * 
+ * @var authnetModel
+ * @access public
+ */
+	public $authnetModelName = 'Authnet.AuthnetTransaction';
+	
 /**
  * Initializes the component
  *
@@ -37,64 +39,47 @@ class AuthnetProcessorComponent extends Object implements IExpressCheckoutProces
  * @access public
  */
 	public function initialize(Controller $Controller) {
-		$this->TransactionModel = ClassRegistry::init($this->authnetModel);
+		$this->TransactionModel = ClassRegistry::init($this->authnetModelName);
 		$this->Controller = $Controller;
 	}
 
-/**
- * Step 1 of the Express Checkout - SetExpressCheckout API call
- * Initializes the command on Payment provider side, and redirects to its website. If an error occurred an exception must be thrown
- *
- * @throws LogicException When the cart content is invalid
- * @throws InvalidArgumentException When there are missing parameters to do the checkout
- * @throws RuntimeException When an unexpected error occurs
- * @param string $cart Cart to checkout with exhaustive information (cf Cart::getExhaustiveCartInfo() return value)
- * @param array $options Options for the checkout. Passed values could be:
- * 	- cancelUrl: url the user must be redirected to in case of cancellation
- * @return void
- * @access public
- */
-	public function ecInitAndRedirect($cart, $options = array()) {
-	}
-
-/**
- * Step 2 of the Express Checkout
- * Retrieve order information and user details from Payment provider website. If an error occurred an exception must be thrown
- * 
- * If the user cancelled or if a permission is missing, the user must be redirected to the url passed in $options['cancelUrl']
- * Otherwise information must be returned in an array.
- * 
- * @throws InvalidArgumentException When there are missing parameters to do the checkout
- * @throws RuntimeException When an unexpected error occurs
- * @param string $cart Cart to checkout with exhaustive information (cf Cart::getExhaustiveCartInfo() return value)
- * @param array $options Options for the checkout. Passed values could be:
- * 	- cancelUrl: url the user must be redirected to in case of cancellation
- * @return array Order Information, with some or all of the following keys:
- * 	- Payment: Payment related data. They will be transmitted "as is" to ecProcessPayment method.
- * 	- ShippingAddress: Shipping address if mentionned on Payment provider website 
- * @access public
- */
-	public function ecRetrieveInfo($cart, $options = array()){
-		
-	}
 	
 /**
- * Step 3 of the Express Checkout
- * Process to the payment. If an error occurred an exception must be thrown
- * 
- * @throws LogicException When the cart content is invalid
+  * Process to the payment. If an error occurred an exception is thrown
+ *
  * @throws InvalidArgumentException When there are incorrect parameters to do the payment
  * @throws RuntimeException When an unexpected error occurs
  * @param string $cart Cart to checkout with exhaustive information (cf Cart::getExhaustiveCartInfo() return value)
  * @param array $options Options for the checkout. Passed values could be:
- * 	- Payment: Payment related data returned by the ecRetrieveInfo method.
- * @return mixed False on error, an array of payment information on success. This array must have the following keys:
- * 	- payment_status: status of the payment made (cf CartOrder->paymentTypes for a list of possible values)
- * 	- payment_reference: internal reference for the transaction
+ * 	- Payment: Payment related data returned by the ecRetrieveInfo method
+ * @return boolean mixed False on error, an array of payment information on success. This array must have the following keys:
  * @access public
+ * @link http://developer.authorize.net/
  */
-	public function ecProcessPayment($cart, $options = array()){
+	public function dcProcessPayment($cart, $options = array()) {
+		$_defaults = array();
+		$options = array_merge($_defaults, $options);
+		if($response = $this->TransactionModel->save($cart)){
+			$result = array(
+				'payment_reference' => $response['response']['transaction_id'],
+				'payment_status' => $response['status'],
+			);
+		}else{
+			return false;
+		}
+
+		// Then process recurring payments
+		//TODO
+
+		return $result;
+	}
+	
+	public function afterOrder($order_id){
 		
+		if(!$this->TransactionModel->logModel->saveField('foreign_id', $order_id)){
+			return false;
+		}
+		return true;
 	}
 	
 	/**
@@ -110,26 +95,25 @@ class AuthnetProcessorComponent extends Object implements IExpressCheckoutProces
  * @access public
  */
 	public function refund($order, $amount, $comment, $reference) {
-		$success = false;
-
-		if ($order['Order']['payment_type'] !== 'Paypal') {
-			throw new InvalidArgumentException(__d('paypal', 'You cannot refund via Paypal an Order paid using another system.', true));
-		}
-
-		$data = array('PaypalRefund' => array(
-			'TRANSACTIONID' => $order['Order']['payment_reference'],
-			'NOTE' => $comment
-		));
-		if ($order['Order']['total_refunds'] == 0 && $amount == $order['Order']['total']) {
-			$data['PaypalRefund']['REFUNDTYPE'] = 'Full';
-		} else {
-			$data['PaypalRefund']['REFUNDTYPE'] = 'Partial';
-			$data['PaypalRefund']['AMT'] = $amount;
-		}
-
-		$ppResponse = $this->Paypal->refundTransaction($data);
-		$success = $ppResponse['REFUNDTRANSACTIONID'];
-
-		return $success;
+		//TODO
 	}
+	
+	
+	/**
+	 * get's the serialized log record and converts it to an array. 
+	 * pass in the field(s) = value(s) as search condition
+	 */
+	public function unserializeLog($fieldVals = array('field' => 'value')){
+		if(!empty($this->TransactionModel->logModel)){
+			if($rec = $this->TransactionModel->logModel->find('first',array(
+				'conditions' => array($fieldVals),
+			)))
+			{
+				$jsonObj = json_decode($rec[$this->TransactionModel->logModel->alias]['data']);
+				return (array) $jsonObj->{$this->TransactionModel->alias};
+			}
+		}
+		return false;
+	}
+	
 }

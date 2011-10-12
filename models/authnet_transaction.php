@@ -19,17 +19,20 @@ class AuthnetTransaction extends AuthnetAppModel {
 				)
 			),
 		'card_number' => array(
-			/* 
 			'cc' => array(
 				'rule' => array('cc', 'fast'),
 				'message' => 'Invalid credit card number.',
-				'required' => false,
-				'allowEmpty' => true
+				'required' => true,
+				'allowEmpty' => false
 				)
-			*/
 			), 
 		'expiration' => array(
 			'mmyyyy' => array(
+				'rule' => array('combineDate'),
+				'required' => true,
+				'allowEmpty' => false,
+				'message' => 'Please choose an expiration date.'
+				/*
 				'rule' => array('mmyyyy', 'expiration'),
 				'message' => 'Invalid expiration date.',
 				'required' => false,
@@ -40,20 +43,45 @@ class AuthnetTransaction extends AuthnetAppModel {
 				'message' => 'Credit card is expired according to date provided.',
 				'required' => false,
 				'allowEmpty' => true
+				*/
 				)
+			),
+		'cvc' => array(
+			'cvcVal' => array(
+				'rule' => array('notEmpty'),
+				'required' => true,
+				'allowEmpty' => false,
+				'message' => 'Please type in your CVC number found on the back of your Credit Card.'
 			)
+		), 
+		'member_id' => array(
+			'member_id' => array(
+				'rule' => array('notEmpty'),
+				'required' => true,
+				'allowEmpty' => false,
+				'message' => 'This field cannot be empty.'
+			)
+		)
+	);
 
-		);
-
-	
 	public function beforeSave() {
 		if (!isset($this->data[$this->alias])) {
 			$this->data = array($this->alias => $this->data);
 		}
 		if (isset($this->data[$this->alias]['expiration'])) {
-			$this->data[$this->alias]['expiration'] = preg_replace('/[^0-9]/', '', $this->data[$this->alias]['expiration']);
+			$this->data[$this->alias]['expiration'] = $this->data[$this->alias]['expiration']['month'].$this->data[$this->alias]['expiration']['year'];
 		}
 		return true;
+	}
+
+	public function combineDate($data){
+		if(strlen($data['expiration']['year']) == 4 
+			&& is_numeric($data['expiration']['year'])
+			&& is_numeric($data['expiration']['month'])
+			&& strlen($data['expiration']['month']) ==  2){
+				return true;
+			}
+		return false;
 	}
 
 	public function mmyyyy($data) {
